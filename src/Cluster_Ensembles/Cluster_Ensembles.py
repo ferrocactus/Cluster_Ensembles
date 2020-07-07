@@ -8,31 +8,31 @@
 # Contact: g.giecold@gmail.com, ggiecold@jimmy.harvard.edu
 
 
-"""Cluster_Ensembles is a package for combining multiple partitions 
+"""Cluster_Ensembles is a package for combining multiple partitions
 into a consolidated clustering.
 The combinatorial optimization problem of obtaining such a consensus clustering
-is reformulated in terms of approximation algorithms for 
+is reformulated in terms of approximation algorithms for
 graph or hyper-graph partitioning.
 
 References
 ----------
 * Giecold, G., Marco, E., Trippa, L. and Yuan, G.-C.,
-"Robust Lineage Reconstruction from High-Dimensional Single-Cell Data". 
+"Robust Lineage Reconstruction from High-Dimensional Single-Cell Data".
 ArXiv preprint [q-bio.QM, stat.AP, stat.CO, stat.ML]: http://arxiv.org/abs/1601.02748
 
 * Strehl, A. and Ghosh, J., "Cluster Ensembles - A Knowledge Reuse Framework
 for Combining Multiple Partitions".
 In: Journal of Machine Learning Research, 3, pp. 583-617. 2002
 
-* Kernighan, B. W. and Lin, S., "An Efficient Heuristic Procedure 
-for Partitioning Graphs". 
+* Kernighan, B. W. and Lin, S., "An Efficient Heuristic Procedure
+for Partitioning Graphs".
 In: The Bell System Technical Journal, 49, 2, pp. 291-307. 1970
 
-* Karypis, G. and Kumar, V., "A Fast and High Quality Multilevel Scheme 
+* Karypis, G. and Kumar, V., "A Fast and High Quality Multilevel Scheme
 for Partitioning Irregular Graphs"
 In: SIAM Journal on Scientific Computing, 20, 1, pp. 359-392. 1998
 
-* Karypis, G., Aggarwal, R., Kumar, V. and Shekhar, S., "Multilevel Hypergraph Partitioning: 
+* Karypis, G., Aggarwal, R., Kumar, V. and Shekhar, S., "Multilevel Hypergraph Partitioning:
 Applications in the VLSI Domain".
 In: IEEE Transactions on Very Large Scale Integration (VLSI) Systems, 7, 1, pp. 69-79. 1999
 """
@@ -48,7 +48,7 @@ import operator
 import pkg_resources
 import psutil
 import scipy.sparse
-from sklearn.metrics import jaccard_similarity_score
+from sklearn.metrics import jaccard_score as jaccard_similarity_score
 from sklearn.metrics import normalized_mutual_info_score
 import subprocess
 import sys
@@ -79,18 +79,18 @@ def memory():
 
     for k, v in psutil.virtual_memory()._asdict().items():
            mem_info[k] = int(v)
-           
+
     return mem_info
 
 
 def get_chunk_size(N, n):
-    """Given a two-dimensional array with a dimension of size 'N', 
+    """Given a two-dimensional array with a dimension of size 'N',
         determine the number of rows or columns that can fit into memory.
 
     Parameters
     ----------
     N : int
-        The size of one of the dimensions of a two-dimensional array.  
+        The size of one of the dimensions of a two-dimensional array.
 
     n : int
         The number of arrays of size 'N' times 'chunk_size' that can fit in memory.
@@ -98,7 +98,7 @@ def get_chunk_size(N, n):
     Returns
     -------
     chunk_size : int
-        The size of the dimension orthogonal to the one of size 'N'. 
+        The size of the dimension orthogonal to the one of size 'N'.
     """
 
     mem_free = memory()['free']
@@ -132,25 +132,25 @@ def get_compression_filter(byte_counts):
         a hierarchical data format, and which compression library to use to that purpose.
         Compression reduces the HDF5 file size and also helps improving I/O efficiency
         for large datasets.
-    
+
     Parameters
     ----------
     byte_counts : int
-    
+
     Returns
     -------
     FILTERS : instance of the tables.Filters class
     """
 
     assert isinstance(byte_counts, numbers.Integral) and byte_counts > 0
-    
+
     if 2 * byte_counts > 1000 * memory()['free']:
         try:
-            FILTERS = tables.filters(complevel = 5, complib = 'blosc', 
+            FILTERS = tables.filters(complevel = 5, complib = 'blosc',
                                      shuffle = True, least_significant_digit = 6)
         except tables.FiltersWarning:
-            FILTERS = tables.filters(complevel = 5, complib = 'lzo', 
-                                     shuffle = True, least_significant_digit = 6)   
+            FILTERS = tables.filters(complevel = 5, complib = 'lzo',
+                                     shuffle = True, least_significant_digit = 6)
     else:
         FILTERS = None
 
@@ -159,11 +159,11 @@ def get_compression_filter(byte_counts):
 
 def build_hypergraph_adjacency(cluster_runs):
     """Return the adjacency matrix to a hypergraph, in sparse matrix representation.
-    
+
     Parameters
     ----------
     cluster_runs : array of shape (n_partitions, n_samples)
-    
+
     Returns
     -------
     hypergraph_adjacency : compressed sparse row matrix
@@ -177,7 +177,7 @@ def build_hypergraph_adjacency(cluster_runs):
     hypergraph_adjacency = create_membership_matrix(cluster_runs[0])
     for i in range(1, N_runs):
         hypergraph_adjacency = scipy.sparse.vstack([hypergraph_adjacency,
-                                                   create_membership_matrix(cluster_runs[i])], 
+                                                   create_membership_matrix(cluster_runs[i])],
                                                    format = 'csr')
 
     return hypergraph_adjacency
@@ -185,16 +185,16 @@ def build_hypergraph_adjacency(cluster_runs):
 
 def store_hypergraph_adjacency(hypergraph_adjacency, hdf5_file_name):
     """Write an hypergraph adjacency to disk to disk in an HDF5 data structure.
-    
+
     Parameters
     ----------
     hypergraph_adjacency : compressed sparse row matrix
-    
+
     hdf5_file_name : file handle or string
     """
-   
+
     assert(hypergraph_adjacency.__class__ == scipy.sparse.csr.csr_matrix)
-    
+
     byte_counts = hypergraph_adjacency.data.nbytes + hypergraph_adjacency.indices.nbytes + hypergraph_adjacency.indptr.nbytes
     FILTERS = get_compression_filter(byte_counts)
 
@@ -209,7 +209,7 @@ def store_hypergraph_adjacency(hypergraph_adjacency, hdf5_file_name):
             array = np.array(getattr(hypergraph_adjacency, par))
 
             atom = tables.Atom.from_dtype(array.dtype)
-            ds = fileh.create_carray(fileh.root.consensus_group, par, atom, 
+            ds = fileh.create_carray(fileh.root.consensus_group, par, atom,
                                      array.shape, filters = FILTERS)
 
             ds[:] = array
@@ -217,11 +217,11 @@ def store_hypergraph_adjacency(hypergraph_adjacency, hdf5_file_name):
 
 def load_hypergraph_adjacency(hdf5_file_name):
     """
-    
+
     Parameters
     ----------
     hdf5_file_name : file handle or string
-    
+
     Returns
     -------
     hypergraph_adjacency : compressed sparse row matrix
@@ -233,14 +233,14 @@ def load_hypergraph_adjacency(hdf5_file_name):
             pars.append(getattr(fileh.root.consensus_group, par).read())
 
     hypergraph_adjacency = scipy.sparse.csr_matrix(tuple(pars[:3]), shape = pars[3])
-    
+
     return hypergraph_adjacency
 
 
 def cluster_ensembles(cluster_runs, hdf5_file_name = None, verbose = False, N_clusters_max = None):
     """Call up to three different functions for heuristic ensemble clustering
        (namely CSPA, HGPA and MCLA) then select as the definitive
-       consensus clustering the one with the highest average mutual information score 
+       consensus clustering the one with the highest average mutual information score
        between its vector of consensus labels and the vectors of labels associated to each
        partition from the ensemble.
 
@@ -251,34 +251,34 @@ def cluster_ensembles(cluster_runs, hdf5_file_name = None, verbose = False, N_cl
         cluster ID to which the i-th sample of the data-set has been classified
         by this particular clustering. Samples not selected for clustering
         in a given round are are tagged by an NaN.
-        
+
     hdf5_file_name : file object or string, optional (default = None)
         The handle or name of an HDF5 file where any array needed
-        for consensus_clustering and too large to fit into memory 
+        for consensus_clustering and too large to fit into memory
         is to be stored. Created if not specified at input.
-        
+
     verbose : Boolean, optional (default = False)
-        Specifies if messages concerning the status of the many functions 
+        Specifies if messages concerning the status of the many functions
         subsequently called 'cluster_ensembles' will be displayed
         on the standard output.
 
     N_clusters_max : int, optional
-        The number of clusters in which to partition the samples into 
+        The number of clusters in which to partition the samples into
         a consensus clustering. This defaults to the highest number of clusters
-        encountered in the sets of independent clusterings on subsamples 
+        encountered in the sets of independent clusterings on subsamples
         of the data-set (i.e. the maximum of the entries in "cluster_runs").
 
     Returns
     -------
     cluster_ensemble : array of shape (n_samples,)
-        For the final ensemble clustering, this vector contains the 
+        For the final ensemble clustering, this vector contains the
         cluster IDs of each sample in the whole data-set.
 
     Reference
     ---------
     A. Strehl and J. Ghosh, "Cluster Ensembles - A Knowledge Reuse Framework
     for Combining Multiple Partitions".
-    In: Journal of Machine Learning Research, 3, pp. 583-617. 2002  
+    In: Journal of Machine Learning Research, 3, pp. 583-617. 2002
     """
 
     if hdf5_file_name is None:
@@ -316,7 +316,7 @@ def cluster_ensembles(cluster_runs, hdf5_file_name = None, verbose = False, N_cl
 
 
 def ceEvalMutual(cluster_runs, cluster_ensemble = None, verbose = False):
-    """Compute a weighted average of the mutual information with the known labels, 
+    """Compute a weighted average of the mutual information with the known labels,
         the weights being proportional to the fraction of known labels.
 
     Parameters
@@ -328,9 +328,9 @@ def ceEvalMutual(cluster_runs, cluster_ensemble = None, verbose = False):
         in a given round are are tagged by an NaN.
 
     cluster_ensemble : array of shape (n_samples,), optional (default = None)
-        The identity of the cluster to which each sample of the whole data-set 
+        The identity of the cluster to which each sample of the whole data-set
         belong to according to consensus clustering.
- 
+
     verbose : Boolean, optional (default = False)
         Specifies if status messages will be displayed
         on the standard output.
@@ -369,7 +369,7 @@ def ceEvalMutual(cluster_runs, cluster_ensemble = None, verbose = False):
 
 
 def checkcl(cluster_run, verbose = False):
-    """Ensure that a cluster labelling is in a valid format. 
+    """Ensure that a cluster labelling is in a valid format.
 
     Parameters
     ----------
@@ -388,7 +388,7 @@ def checkcl(cluster_run, verbose = False):
         either rejected or altered. In particular, the labelling of cluster IDs
         starts at zero and increases by 1 without any gap left.
     """
-    
+
     cluster_run = np.asanyarray(cluster_run)
 
     if cluster_run.size == 0:
@@ -414,7 +414,7 @@ def checkcl(cluster_run, verbose = False):
                 print("\nINFO: Cluster_Ensembles: checkcl: "
                       "offset to a minimum value of '0'.")
 
-        x = one_to_max(cluster_run) 
+        x = one_to_max(cluster_run)
         if np.amax(cluster_run) != np.amax(x):
             if verbose:
                 print("\nINFO: Cluster_Ensembles: checkcl: the vector cluster "
@@ -431,25 +431,25 @@ def checkcl(cluster_run, verbose = False):
 
 
 def one_to_max(array_in):
-    """Alter a vector of cluster labels to a dense mapping. 
-        Given that this function is herein always called after passing 
-        a vector to the function checkcl, one_to_max relies on the assumption 
+    """Alter a vector of cluster labels to a dense mapping.
+        Given that this function is herein always called after passing
+        a vector to the function checkcl, one_to_max relies on the assumption
         that cluster_run does not contain any NaN entries.
 
     Parameters
     ----------
     array_in : a list or one-dimensional array
         The list of cluster IDs to be processed.
-    
+
     Returns
     -------
     result : one-dimensional array
         A massaged version of the input vector of cluster identities.
     """
-    
+
     x = np.asanyarray(array_in)
     N_in = x.size
-    array_in = x.reshape(N_in)    
+    array_in = x.reshape(N_in)
 
     sorted_array = np.sort(array_in)
     sorting_indices = np.argsort(array_in)
@@ -470,19 +470,19 @@ def one_to_max(array_in):
 
 
 def checks(similarities, verbose = False):
-    """Check that a matrix is a proper similarity matrix and bring 
+    """Check that a matrix is a proper similarity matrix and bring
         appropriate changes if applicable.
 
     Parameters
     ----------
     similarities : array of shape (n_samples, n_samples)
-        A matrix of pairwise similarities between (sub)-samples of the data-set. 
+        A matrix of pairwise similarities between (sub)-samples of the data-set.
 
     verbose : Boolean, optional (default = False)
         Alerts of any issue with the similarities matrix provided
         and of any step possibly taken to remediate such problem.
     """
-    
+
     if similarities.size == 0:
         raise ValueError("\nERROR: Cluster_Ensembles: checks: the similarities "
                          "matrix provided as input happens to be empty.\n")
@@ -521,14 +521,14 @@ def checks(similarities, verbose = False):
                 print("\nINFO: Cluster_Ensembles: checks: strictly negative "
                       "or bigger than unity entries spotted in input similarities matrix.")
 
-            indices_too_big = np.where(similarities > 1) 
+            indices_too_big = np.where(similarities > 1)
             indices_negative = np.where(similarities < 0)
             similarities[indices_too_big] = 1.0
             similarities[indices_negative] = 0.0
 
             if verbose:
                 print("\nINFO: Cluster_Ensembles: checks: done setting them to "
-                      "the lower or upper accepted values.")     
+                      "the lower or upper accepted values.")
 
         if not np.allclose(similarities, np.transpose(similarities)):
             if verbose:
@@ -553,17 +553,17 @@ def checks(similarities, verbose = False):
 
 def CSPA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
     """Cluster-based Similarity Partitioning Algorithm for a consensus function.
-    
+
     Parameters
     ----------
     hdf5_file_name : file handle or string
-    
+
     cluster_runs : array of shape (n_partitions, n_samples)
-    
+
     verbose : bool, optional (default = False)
-    
+
     N_clusters_max : int, optional (default = None)
-    
+
     Returns
     -------
     A vector specifying the cluster label to which each sample has been assigned
@@ -592,14 +592,14 @@ def CSPA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
 
     s = scipy.sparse.csr_matrix.dot(hypergraph_adjacency.transpose().tocsr(), hypergraph_adjacency)
     s = np.squeeze(np.asarray(s.todense()))
-    
+
     del hypergraph_adjacency
     gc.collect()
 
     checks(np.divide(s, float(N_runs)), verbose)
 
     e_sum_before = s.sum()
-    sum_after = 100000000.0  
+    sum_after = 100000000.0
     scale_factor = sum_after / float(e_sum_before)
 
     with tables.open_file(hdf5_file_name, 'r+') as fileh:
@@ -608,7 +608,7 @@ def CSPA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
 
         S = fileh.create_carray(fileh.root.consensus_group, 'similarities_CSPA', atom,
                                (N_samples, N_samples), "Matrix of similarities arising "
-                               "in Cluster-based Similarity Partitioning", 
+                               "in Cluster-based Similarity Partitioning",
                                filters = FILTERS)
 
         expr = tables.Expr("s * scale_factor")
@@ -625,17 +625,17 @@ def CSPA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
 
 def HGPA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
     """HyperGraph-Partitioning Algorithm for a consensus function.
-    
+
     Parameters
     ----------
     hdf5_file_name : string or file handle
-    
+
     cluster_runs: array of shape (n_partitions, n_samples)
-    
+
     verbose : bool, optional (default = False)
-    
+
     N_clusters_max : int, optional (default = None)
-    
+
     Returns
     -------
     A vector specifying the cluster label to which each sample has been assigned
@@ -647,7 +647,7 @@ def HGPA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
     for Combining Multiple Partitions".
     In: Journal of Machine Learning Research, 3, pp. 583-617. 2002
     """
-    
+
     print('\n*****')
     print("INFO: Cluster_Ensembles: HGPA: consensus clustering using HGPA.")
 
@@ -659,17 +659,17 @@ def HGPA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
 
 def MCLA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
     """Meta-CLustering Algorithm for a consensus function.
-    
+
     Parameters
     ----------
     hdf5_file_name : file handle or string
-    
+
     cluster_runs : array of shape (n_partitions, n_samples)
-    
+
     verbose : bool, optional (default = False)
-    
+
     N_clusters_max : int, optional (default = None)
-    
+
     Returns
     -------
     A vector specifying the cluster label to which each sample has been assigned
@@ -704,9 +704,9 @@ def MCLA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
     # Next, obtain a matrix of pairwise Jaccard similarity scores between the rows of the hypergraph adjacency matrix.
     with tables.open_file(hdf5_file_name, 'r+') as fileh:
         FILTERS = get_compression_filter(4 * (N_rows ** 2))
-    
-        similarities_MCLA = fileh.create_carray(fileh.root.consensus_group, 
-                                   'similarities_MCLA', tables.Float32Atom(), 
+
+        similarities_MCLA = fileh.create_carray(fileh.root.consensus_group,
+                                   'similarities_MCLA', tables.Float32Atom(),
                                    (N_rows, N_rows), "Matrix of pairwise Jaccard "
                                    "similarity scores", filters = FILTERS)
 
@@ -732,7 +732,7 @@ def MCLA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
             x = np.dot(x, np.ones((1, squared_sums.size)))
 
             y = np.dot(np.ones((n_dim, 1)), squared_sums.reshape(1, -1))
-        
+
             temp = np.divide(temp, x + y - temp)
             temp *= scale_factor
 
@@ -741,7 +741,7 @@ def MCLA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
 
             del Jaccard_matrix, temp, x, y
             gc.collect()
- 
+
     # Done computing the matrix of pairwise Jaccard similarity scores.
     print("INFO: Cluster_Ensembles: MCLA: done computing the matrix of "
           "pairwise Jaccard similarity scores.")
@@ -756,12 +756,12 @@ def MCLA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
     fileh = tables.open_file(hdf5_file_name, 'r+')
 
     FILTERS = get_compression_filter(4 * N_consensus * N_samples)
-    
-    clb_cum = fileh.create_carray(fileh.root.consensus_group, 'clb_cum', 
-                                  tables.Float32Atom(), (N_consensus, N_samples), 
-                                  'Matrix of mean memberships, forming meta-clusters', 
-                                  filters = FILTERS)  
- 
+
+    clb_cum = fileh.create_carray(fileh.root.consensus_group, 'clb_cum',
+                                  tables.Float32Atom(), (N_consensus, N_samples),
+                                  'Matrix of mean memberships, forming meta-clusters',
+                                  filters = FILTERS)
+
     chunks_size = get_chunk_size(N_samples, 7)
     for i in range(0, N_consensus, chunks_size):
         x = min(chunks_size, N_consensus - i)
@@ -771,8 +771,8 @@ def MCLA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
             coord = np.where(matched_clusters[0] == j)[0]
             M[j] = np.asarray(hypergraph_adjacency[matched_clusters[1][coord], :].mean(axis = 0))
         clb_cum[i:min(i+chunks_size, N_consensus)] = M
-    
-    # Done with collapsing the hyper-edges into a single meta-hyper-edge, 
+
+    # Done with collapsing the hyper-edges into a single meta-hyper-edge,
     # for each of the (N_consensus - 1) meta-clusters.
 
     del hypergraph_adjacency
@@ -835,7 +835,7 @@ def MCLA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
             M = tmp[:, N_chunks*chunks_size:N_samples]
             sum_diag = np.append(sum_diag, M.sum(axis = 0))
 
-    fileh.remove_node(fileh.root.consensus_group, "tmp") 
+    fileh.remove_node(fileh.root.consensus_group, "tmp")
     # The corresponding disk space will be freed after a call to 'fileh.close()'.
 
     inv_sum_diag = np.reciprocal(sum_diag.astype(float))
@@ -854,12 +854,12 @@ def MCLA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
 
     cluster_labels = np.zeros(N_samples, dtype = int)
     winner_probabilities = np.zeros(N_samples)
-    
+
     chunks_size = get_chunk_size(N_samples, 2)
     for i in reversed(range(0, N_consensus, chunks_size)):
         ind = np.where(np.tile(max_entries, (min(chunks_size, N_consensus - i), 1)) == clb_cum[i:min(i+chunks_size, N_consensus)])
         cluster_labels[ind[1]] = i + ind[0]
-        winner_probabilities[ind[1]] = clb_cum[(ind[0] + i, ind[1])]       
+        winner_probabilities[ind[1]] = clb_cum[(ind[0] + i, ind[1])]
 
     # Done with competing for objects.
 
@@ -882,15 +882,15 @@ def MCLA(hdf5_file_name, cluster_runs, verbose = False, N_clusters_max = None):
 
 
 def create_membership_matrix(cluster_run):
-    """For a label vector represented by cluster_run, constructs the binary 
-        membership indicator matrix. Such matrices, when concatenated, contribute 
-        to the adjacency matrix for a hypergraph representation of an 
+    """For a label vector represented by cluster_run, constructs the binary
+        membership indicator matrix. Such matrices, when concatenated, contribute
+        to the adjacency matrix for a hypergraph representation of an
         ensemble of clusterings.
-    
+
     Parameters
     ----------
     cluster_run : array of shape (n_partitions, n_samples)
-    
+
     Returns
     -------
     An adjacnecy matrix in compressed sparse row form.
@@ -906,7 +906,7 @@ def create_membership_matrix(cluster_run):
         cluster_run = cluster_run.reshape(cluster_run.size)
 
         cluster_ids = np.unique(np.compress(np.isfinite(cluster_run), cluster_run))
-      
+
         indices = np.empty(0, dtype = np.int32)
         indptr = np.zeros(1, dtype = np.int32)
 
@@ -920,21 +920,21 @@ def create_membership_matrix(cluster_run):
 
 
 def metis(hdf5_file_name, N_clusters_max):
-    """METIS algorithm by Karypis and Kumar. Partitions the induced similarity graph 
+    """METIS algorithm by Karypis and Kumar. Partitions the induced similarity graph
         passed by CSPA.
 
     Parameters
     ----------
     hdf5_file_name : string or file handle
-    
+
     N_clusters_max : int
-    
+
     Returns
     -------
     labels : array of shape (n_samples,)
         A vector of labels denoting the cluster to which each sample has been assigned
         as a result of the CSPA heuristics for consensus clustering.
-    
+
     Reference
     ---------
     G. Karypis and V. Kumar, "A Fast and High Quality Multilevel Scheme for
@@ -950,28 +950,28 @@ def metis(hdf5_file_name, N_clusters_max):
 
 
 def hmetis(hdf5_file_name, N_clusters_max, w = None):
-    """Gives cluster labels ranging from 1 to N_clusters_max for 
+    """Gives cluster labels ranging from 1 to N_clusters_max for
         hypergraph partitioning required for HGPA.
 
     Parameters
     ----------
     hdf5_file_name : file handle or string
-    
+
     N_clusters_max : int
-    
+
     w : array, optional (default = None)
-    
+
     Returns
     -------
     labels : array of shape (n_samples,)
         A vector of labels denoting the cluster to which each sample has been assigned
         as a result of the HGPA approximation algorithm for consensus clustering.
-    
+
     Reference
     ---------
     G. Karypis, R. Aggarwal, V. Kumar and S. Shekhar, "Multilevel hypergraph
-    partitioning: applications in VLSI domain" 
-    In: IEEE Transactions on Very Large Scale Integration (VLSI) Systems, 
+    partitioning: applications in VLSI domain"
+    In: IEEE Transactions on Very Large Scale Integration (VLSI) Systems,
     Vol. 7, No. 1, pp. 69-79, 1999.
     """
 
@@ -988,15 +988,15 @@ def hmetis(hdf5_file_name, N_clusters_max, w = None):
 
 
 def cmetis(hdf5_file_name, N_clusters_max, w = None):
-    """Returns cluster labellings ranging from 1 to N_clusters_max 
+    """Returns cluster labellings ranging from 1 to N_clusters_max
         for hypergraph partitioning involved in MCLA.
 
     Parameters
     ----------
     hdf5_file_name : file handle or string
-    
+
     N_clusters_max : int
-    
+
     w : array, optiona (default = None)
 
     Returns
@@ -1004,14 +1004,14 @@ def cmetis(hdf5_file_name, N_clusters_max, w = None):
     labels : array of shape (n_samples,)
         A vector of labels denoting the cluster to which each sample has been assigned
         as a result of the MCLA approximation algorithm for consensus clustering.
-        
+
     Reference
     ---------
     G. Karypis and V. Kumar, "A Fast and High Quality Multilevel Scheme for
     Partitioning Irregular Graphs"
     In: SIAM Journal on Scientific Computing, Vol. 20, No. 1, pp. 359-392, 1999.
     """
- 
+
     file_name = wgraph(hdf5_file_name, w, 1)
     labels = sgraph(N_clusters_max, file_name)
     labels = one_to_max(labels)
@@ -1023,15 +1023,15 @@ def cmetis(hdf5_file_name, N_clusters_max, w = None):
 
 def wgraph(hdf5_file_name, w = None, method = 0):
     """Write a graph file in a format apposite to later use by METIS or HMETIS.
-    
+
     Parameters
     ----------
     hdf5_file_name : file handle or string
-    
+
     w : list or array, optional (default = None)
-    
+
     method : int, optional (default = 0)
-    
+
     Returns
     -------
     file_name : string
@@ -1095,11 +1095,11 @@ def wgraph(hdf5_file_name, w = None, method = 0):
                 if remainder != 0:
                     M = e_mat[N_chunks*chunks_size:N_rows]
                     sz += float(np.sum(M > 0))
-                sz = float(sz) / 2 
+                sz = float(sz) / 2
             file.write('{} {} 11\n'.format(N_rows, int(sz)))
         else:
             file.write('{} {} 1\n'.format(N_cols, N_rows))
-                    
+
         if method in {0, 1}:
             chunks_size = get_chunk_size(N_cols, 2)
             for i in range(0, N_rows, chunks_size):
@@ -1112,18 +1112,18 @@ def wgraph(hdf5_file_name, w = None, method = 0):
                     if method == 0:
                         interlaced = np.zeros(2 * edges.size, dtype = int)
                         # METIS and hMETIS have vertices numbering starting from 1:
-                        interlaced[::2] = edges + 1 
+                        interlaced[::2] = edges + 1
                         interlaced[1::2] = weights
                     else:
                         interlaced = np.zeros(1 + 2 * edges.size, dtype = int)
                         interlaced[0] = w[i + j]
                         # METIS and hMETIS have vertices numbering starting from 1:
-                        interlaced[1::2] = edges + 1 
+                        interlaced[1::2] = edges + 1
                         interlaced[2::2] = weights
 
                     for elt in interlaced:
                         file.write('{} '.format(int(elt)))
-                    file.write('\n')  
+                    file.write('\n')
         else:
             print("INFO: Cluster_Ensembles: wgraph: {N_rows} vertices and {N_cols} "
                   "non-zero hyper-edges.".format(**locals()))
@@ -1138,12 +1138,12 @@ def wgraph(hdf5_file_name, w = None, method = 0):
                     else:
                         weight = w[i + j]
                     # METIS and hMETIS require vertices numbering starting from 1:
-                    interlaced = np.append(weight, edges + 1) 
-               
+                    interlaced = np.append(weight, edges + 1)
+
                     for elt in interlaced:
                         file.write('{} '.format(int(elt)))
                     file.write('\n')
-    
+
     if method in {0, 1}:
         fileh.remove_node(fileh.root.consensus_group, e_mat.name)
 
@@ -1155,20 +1155,20 @@ def wgraph(hdf5_file_name, w = None, method = 0):
 
 
 def sgraph(N_clusters_max, file_name):
-    """Runs METIS or hMETIS and returns the labels found by those 
+    """Runs METIS or hMETIS and returns the labels found by those
         (hyper-)graph partitioning algorithms.
-        
+
     Parameters
     ----------
     N_clusters_max : int
-    
+
     file_name : string
-    
+
     Returns
     -------
     labels : array of shape (n_samples,)
         A vector of labels denoting the cluster to which each sample has been assigned
-        as a result of any of three approximation algorithms for consensus clustering 
+        as a result of any of three approximation algorithms for consensus clustering
         (either of CSPA, HGPA or MCLA).
     """
 
@@ -1182,19 +1182,19 @@ def sgraph(N_clusters_max, file_name):
     if file_name == 'wgraph_HGPA':
         print("INFO: Cluster_Ensembles: sgraph: "
               "calling shmetis for hypergraph partitioning.")
-        
+
         if sys.platform.startswith('linux'):
-            shmetis_path = pkg_resources.resource_filename(__name__, 
+            shmetis_path = pkg_resources.resource_filename(__name__,
                                          'Hypergraph_Partitioning/hmetis-1.5-linux/shmetis')
         elif sys.platform.startswith('darwin'):
-            shmetis_path = pkg_resources.resource_filename(__name__, 
+            shmetis_path = pkg_resources.resource_filename(__name__,
                                       'Hypergraph_Partitioning/hmetis-1.5-osx-i686/shmetis')
         else:
             print("ERROR: Cluster_Ensembles: sgraph:\n"
                   "your platform is not supported. Some code required for graph partition "
                   "is only available for Linux distributions and OS X.")
             sys.exit(1)
-        
+
         args = "{0} ./".format(shmetis_path) + file_name + " " + k + " 15"
         subprocess.call(args, shell = True)
     elif file_name == 'wgraph_CSPA' or file_name == 'wgraph_MCLA':
@@ -1212,7 +1212,7 @@ def sgraph(N_clusters_max, file_name):
               "loading {}".format(out_name))
         labels = np.loadtxt(out_name, dtype = int)
         labels = labels.reshape(labels.size)
-    labels = one_to_max(labels)            
+    labels = one_to_max(labels)
 
     subprocess.call(['rm', out_name])
 
@@ -1224,27 +1224,27 @@ def sgraph(N_clusters_max, file_name):
 def overlap_matrix(hdf5_file_name, consensus_labels, cluster_runs):
     """Writes on disk (in an HDF5 file whose handle is provided as the first
        argument to this function) a stack of matrices, each describing
-       for a particular run the overlap of cluster ID's that are matching 
-       each of the cluster ID's stored in 'consensus_labels' 
-       (the vector of labels obtained by ensemble clustering). 
-       Returns also the adjacency matrix for consensus clustering 
-       and a vector of mutual informations between each of the clusterings 
+       for a particular run the overlap of cluster ID's that are matching
+       each of the cluster ID's stored in 'consensus_labels'
+       (the vector of labels obtained by ensemble clustering).
+       Returns also the adjacency matrix for consensus clustering
+       and a vector of mutual informations between each of the clusterings
        from the ensemble and their consensus.
-       
+
     Parameters
     ----------
     hdf5_file_name : file handle or string
-    
+
     consensus_labels : array of shape (n_samples,)
-    
+
     cluster_runs : array of shape (n_partitions, n_samples)
-    
+
     Returns
     -------
-    cluster_dims_list : 
-    
+    cluster_dims_list :
+
     mutual_info_list :
-    
+
     consensus_adjacency :
     """
 
@@ -1261,17 +1261,17 @@ def overlap_matrix(hdf5_file_name, consensus_labels, cluster_runs):
         indices_consensus_adjacency = np.append(indices_consensus_adjacency, np.where(consensus_labels == k)[0])
         indptr_consensus_adjacency = np.append(indptr_consensus_adjacency, indices_consensus_adjacency.size)
 
-    data_consensus_adjacency = np.ones(indices_consensus_adjacency.size, dtype = int) 
+    data_consensus_adjacency = np.ones(indices_consensus_adjacency.size, dtype = int)
 
-    consensus_adjacency = scipy.sparse.csr_matrix((data_consensus_adjacency, indices_consensus_adjacency, indptr_consensus_adjacency), 
+    consensus_adjacency = scipy.sparse.csr_matrix((data_consensus_adjacency, indices_consensus_adjacency, indptr_consensus_adjacency),
                                                   shape = (N_consensus_labels, N_samples))
 
     fileh = tables.open_file(hdf5_file_name, 'r+')
-    
+
     FILTERS = get_compression_filter(4 * N_consensus_labels * N_runs)
 
     overlap_matrix = fileh.create_earray(fileh.root.consensus_group, 'overlap_matrix',
-                                         tables.Float32Atom(), (0, N_consensus_labels), 
+                                         tables.Float32Atom(), (0, N_consensus_labels),
                                          "Matrix of overlaps between each run and "
                                          "the consensus labellings", filters = FILTERS,
                                          expectedrows = N_consensus_labels * N_runs)
@@ -1304,12 +1304,12 @@ def overlap_matrix(hdf5_file_name, consensus_labels, cluster_runs):
 
             for k in range(N_consensus_labels):
                 x = indices_consensus_adjacency[indptr_consensus_adjacency[k]:indptr_consensus_adjacency[k+1]]
-                unions[c, k] = np.union1d(indices, x).size 
- 
-            c += 1 
+                unions[c, k] = np.union1d(indices, x).size
+
+            c += 1
 
         data = np.ones(indices.size, dtype = int)
-    
+
         I = scipy.sparse.csr_matrix((data, indices, indptr), shape = (n_ids, N_samples))
 
         intersections = I.dot(consensus_adjacency.transpose())
@@ -1320,4 +1320,4 @@ def overlap_matrix(hdf5_file_name, consensus_labels, cluster_runs):
     fileh.close()
 
     return cluster_dims_list, mutual_info_list, consensus_adjacency
-    
+
